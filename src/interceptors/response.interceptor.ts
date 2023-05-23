@@ -7,7 +7,7 @@ import {
 import { Observable, map } from 'rxjs';
 
 export interface Response<T> {
-  status: number;
+  statusCode: number;
   data: T;
   message: string;
 }
@@ -23,7 +23,7 @@ export class TransformInterceptor<T>
     return next.handle().pipe(
       map((data) => {
         return {
-          status: 200,
+          statusCode: 200,
           message: 'OK',
           data,
         };

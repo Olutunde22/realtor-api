@@ -4,11 +4,19 @@ import { AuthModule } from './auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { HomeModule } from './home/home.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { TransformInterceptor, UserInterceptor } from './interceptors';
+import {
+  TimeoutInterceptor,
+  TransformInterceptor,
+  UserInterceptor,
+} from './interceptors';
 import { AuthGuard } from './guards';
 
 @Module({
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: TimeoutInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: UserInterceptor,
