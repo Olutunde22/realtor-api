@@ -1,0 +1,82 @@
+# This workflow will deploy source code on Cloud Run when a pull request is merged to the main branch
+#
+# Overview:
+#
+# 1. Authenticate to Google Cloud
+# 2. Deploy it to Cloud Run
+#
+# Things to note
+#
+# 1. Ensure Cloud Run, Cloud Build and Container Registry are enabled
+#
+# 2. Ensure the required IAM permissions are granted Container Registry Administrator, Cloud Build Editor, Cloud Run Admin, Storage Object Admin
+#
+# 3. Create GitHub secrets credential json
+#
+# 4. Change the values for the IMAGE_NAME and REGION environment variables (below).
+#
+# For more support on how to run this workflow, please visit https://github.com/marketplace/actions/deploy-to-cloud-run
+#
+# Further reading:
+#   Cloud Run runtime service account   - https://cloud.google.com/run/docs/securing/service-identity
+#   Cloud Run IAM permissions           - https://cloud.google.com/run/docs/deploying-source-code#permissions_required_to_deploy
+#   Cloud Run builds from source        - https://cloud.google.com/run/docs/deploying-source-code
+#   Principle of least privilege        - https://cloud.google.com/blog/products/identity-security/dont-get-pwned-practicing-the-principle-of-least-privilege
+
+name: Deploy to Cloud Run from Source
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  IMAGE_NAME: ${{ secrets.IMAGE_NAME }}
+  REGION: ${{ secrets.REGION }}
+
+jobs:
+  if_merged:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+     # Add envvironment variables for the en file
+      - run: |
+           echo "DATABASE_URL=${{ secrets.DATABASE_URL }}" > .env
+           echo "TOKEN_SECRET=${{ secrets.TOKEN_SECRET }}" > .env
+           echo "TOKEN_EXPIRES=604800" > .env
+           echo "PRODUCT_KEY_SECRET=${{ secrets.PRODUCT_KEY_SECRET }}" > .env       
+           echo "PORT=8080" > .env
+
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+     # Setup gcloud CLI/SDK
+      - name: Setup google cloud
+        uses: google-github-actions/setup-gcloud@v1
+      
+      - name: Authorize Docker push
+        run: gcloud auth configure-docker
+
+      - name: Build and tag the docker image
+        run: |-
+         docker build . --tag gcr.io/$PROJECT_ID/$IMAGE_NAME:$GITHUB_SHA
+
+      - name: Push the image to the Google Container Registry (GCR)
+        run: |-
+         docker push gcr.io/$PROJECT_ID/$IMAGE_NAME:$GITHUB_SHA
+
+      - name: Deploy
+        run: |-
+          gcloud run deploy $IMAGE_NAME \
+          --region $REGION \
+          --image gcr.io/$PROJECT_ID/$IMAGE_NAME:$GITHUB_SHA \
+          --platform "managed" \
+          --quiet
