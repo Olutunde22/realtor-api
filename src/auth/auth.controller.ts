@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  HttpCode,
   Param,
   ParseEnumPipe,
   Post,
@@ -12,11 +11,15 @@ import { ProductKeyDto, SignInDto, SignUpDto } from 'src/dto';
 import { ApiTags } from '@nestjs/swagger';
 import { UserType } from '@prisma/client';
 import { compare } from 'bcryptjs';
+import { ConfigService } from '@nestjs/config';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private configService: ConfigService,
+  ) {}
 
   @Post('signup/:userType')
   async signup(
@@ -27,11 +30,12 @@ export class AuthController {
       if (!body.productKey) {
         throw new UnauthorizedException('Please provide a product key');
       }
-      const productKey = await this.authService.generateProductKey({
-        email: body.email,
-        userType,
-      });
-      const isValidProductKey = await compare(productKey, body.productKey);
+      const isValidProductKey = await compare(
+        `${body.email}-${userType}-${this.configService.get<string>(
+          'PRODUCT_KEY_SECRET',
+        )}`,
+        body.productKey,
+      );
       if (!isValidProductKey) {
         throw new UnauthorizedException('Invalid product key');
       }
@@ -42,7 +46,6 @@ export class AuthController {
     return this.authService.signUp(body, userType);
   }
 
-  @HttpCode(200)
   @Post('signin')
   async signIn(@Body() body: SignInDto) {
     return this.authService.signIn(body);

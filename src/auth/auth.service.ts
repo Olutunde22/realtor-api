@@ -7,12 +7,17 @@ import { User, UserType } from '@prisma/client';
 import { ProductKeyDto, SignInDto, SignUpDto } from 'src/dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { hash, compare } from 'bcryptjs';
-import { sign } from 'jsonwebtoken';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class AuthService {
   user = this.prismaService.user;
-  constructor(private readonly prismaService: PrismaService) {}
+  constructor(
+    private readonly prismaService: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async signUp(body: SignUpDto, userType: UserType) {
     const userExists = await this.user.findUnique({
@@ -66,7 +71,9 @@ export class AuthService {
     };
   }
   async generateProductKey({ email, userType }: ProductKeyDto) {
-    const string = `${email}-${userType}-${process.env.PRODUCT_KEY_SECRET}`;
+    const string = `${email}-${userType}-${this.configService.get<string>(
+      'PRODUCT_KEY_SECRET',
+    )}`;
     return hash(string, 10);
   }
 
@@ -79,8 +86,8 @@ export class AuthService {
   }
 
   private async generateToken(payload: Pick<User, 'id' | 'name'>) {
-    return sign(payload, process.env.TOKEN_SECRET, {
-      expiresIn: process.env.TOKEN_EXPIRES,
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('TOKEN_SECRET'),
     });
   }
 }
